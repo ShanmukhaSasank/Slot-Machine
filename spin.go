@@ -1,38 +1,30 @@
 package main
 
-import (
-	"fmt"
-	"math/rand"
-)
+import "math/rand"
 
-func GetSymbolArray(symbols map[string]uint) []string {
+func GetSymbolArray(symbols map[string]int) []string {
 	symbolArray := []string{}
 	for symbol, count := range symbols {
-		for i := uint(0); i < count; i++ {
+		for i := 0; i < count; i++ {
 			symbolArray = append(symbolArray, symbol)
 		}
 	}
 	return symbolArray
 }
 
-func getRandomNumber(min int, max int) int {
-	randomNumber := min + rand.Intn(max-min+1)
-	return randomNumber
+func getRandomNumber(min int, max int, rng *rand.Rand) int {
+	return min + rng.Intn(max-min+1)
 }
 
-func GetSpin(reel []string, rows int, cols int) [][]string {
-	result := [][]string{}
+func GetSpin(reel []string, rows int, cols int, rng *rand.Rand) [][]string {
+	result := make([][]string, rows)
 
-	for i := 0; i < rows; i++ {
-		result = append(result, []string{})
-	}
 	for col := 0; col < cols; col++ {
 		selected := map[int]bool{}
 		for row := 0; row < rows; row++ {
-			for true {
-				randomIndex := getRandomNumber(0, len(reel)-1)
-				_, exists := selected[randomIndex]
-				if !exists {
+			for {
+				randomIndex := getRandomNumber(0, len(reel)-1, rng)
+				if !selected[randomIndex] {
 					selected[randomIndex] = true
 					result[row] = append(result[row], reel[randomIndex])
 					break
@@ -40,17 +32,6 @@ func GetSpin(reel []string, rows int, cols int) [][]string {
 			}
 		}
 	}
-	return result
-}
 
-func PrintSpin(spin [][]string) {
-	for _, row := range spin {
-		for j, symbol := range row {
-			fmt.Printf(symbol)
-			if j != len(row)-1 {
-				fmt.Print(" | ")
-			}
-		}
-		fmt.Println()
-	}
+	return result
 }

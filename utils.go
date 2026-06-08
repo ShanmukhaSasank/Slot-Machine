@@ -1,32 +1,26 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
+	"net/http"
 )
 
-func GetName() string {
-	name := ""
-	fmt.Println("Welcome to Sasank's Casino...!")
-	fmt.Print("Please enter your name: ")
-	_, err := fmt.Scanln(&name)
-	if err != nil {
-		fmt.Println("Error reading input:", err)
-		return ""
-	}
-	fmt.Printf("Welcome, %s! Let's play!\n", name)
-	return name
+type errorResponse struct {
+	Error string `json:"error"`
 }
 
-func GetBet(balance uint) uint {
-	var bet uint
-	for true {
-		fmt.Printf("Please enter your bet or 0 to quit (balance=$%d): ", balance)
-		fmt.Scan(&bet)
-		if bet > balance {
-			fmt.Printf("Your bet cannot be more than your balance of %d. Please try again.\n", balance)
-		} else {
-			break
-		}
-	}
-	return bet
+func decodeJSON(r *http.Request, destination any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(destination)
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, errorResponse{Error: message})
 }

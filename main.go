@@ -1,65 +1,62 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 )
 
+func main() {
+	game := NewGame()
+	mux := http.NewServeMux()
 
-func checkWin(spin [][]string, multipliers map[string]uint) []uint {
-	lines := []uint{}
-	for _, row := range spin {
-		win := true
-		checkSymbol := row[0]
-		for _, symbol := range row[1:] {
-			if checkSymbol != symbol {
-				win = false
-				break
-			}
-		}
-		if win {
-			lines = append(lines, multipliers[checkSymbol])
-		} else {
-			lines = append(lines, 0)
-		}
+	mux.HandleFunc("POST /api/game/start", game.handleStart)
+	mux.HandleFunc("POST /api/game/spin", game.handleSpin)
+	mux.HandleFunc("/", serveFrontend(filepath.Join("frontend", "dist")))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
-	return lines
+
+	log.Printf("Sasank's Casino listening on http://localhost:%s", port)
+	if err := http.ListenAndServe(":"+port, logRequests(mux)); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func main() {
-	symbols := map[string]uint{
-		"A": 4,
-		"B": 8,
-		"C": 12,
-		"D": 20,
-	}
+func serveFrontend(distDir string) http.HandlerFunc {
+	fileServer := http.FileServer(http.Dir(distDir))
 
-	multipliers := map[string]uint{
-		"A": 50,
-		"B": 30,
-		"C": 10,
-		"D": 5,
-	}
-
-	symbolArray := GetSymbolArray(symbols)
-
-	balance := uint(300)
-	GetName()
-	for balance > 0 {
-		bet := GetBet(balance)
-		if bet == 0 {
-			break
+	return func(w http.ResponseWriter, r *http.Request) {
+		indexPath := filepath.Join(distDir, "index.html")
+		if _, err := os.Stat(indexPath); err != nil {
+			http.Error(w, "frontend build not found; run npm run build inside frontend", http.StatusServiceUnavailable)
+			return
 		}
-		balance -= bet
-		spin := GetSpin(symbolArray, 3, 3)
-		PrintSpin(spin)
-		winningLines := checkWin(spin, multipliers)
-		for i, multi := range winningLines {
-			win := bet * multi
-			balance += win
-			if multi > 0 {
-				fmt.Printf("Won $%d, (%dx) on line #%d\n", win, multi, i+1)
-			}
+
+		requestPath := path.Clean(r.URL.Path)
+		requestPath = requestPath[1:]
+		if requestPath == "." || requestPath == "" {
+			http.ServeFile(w, r, indexPath)
+			return
 		}
+
+		candidate := filepath.Join(distDir, requestPath)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		http.ServeFile(w, r, indexPath)
 	}
-	fmt.Printf("Your final balance is $%d. Thanks for playing!\n", balance)
+}
+
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
 }
