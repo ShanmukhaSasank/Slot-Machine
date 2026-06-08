@@ -1,146 +1,259 @@
 import { useEffect, useRef, useState } from "react";
 import { spinGame, startGame } from "../lib/api";
+import {
+  analyzeSpin,
+  createReelSpin,
+  IDLE_BOARD,
+  REEL_STOP_TIMES
+} from "../lib/gamePresentation";
+import { useSoundEffects } from "./useSoundEffects";
 
-const idleBoard = [
-  ["A", "D", "B"],
-  ["C", "B", "D"],
-  ["D", "C", "A"]
-];
+const initialStatus = {
+  tone: "idle",
+  title: "Ready to spin",
+  text: "Pull the lever or set your wager below."
+};
 
-const symbolCycle = ["A", "B", "C", "D"];
-const animationDuration = 1500;
-const frameInterval = 120;
-
-function buildRollingBoard(frame) {
-  return Array.from({ length: 3 }, (_, rowIndex) =>
-    Array.from({ length: 3 }, (_, columnIndex) => {
-      const symbolIndex =
-        (frame + rowIndex * 2 + columnIndex * 3) % symbolCycle.length;
-      return symbolCycle[symbolIndex];
-    })
-  );
-}
+const initialStats = {
+  biggestWin: 0,
+  currentWinStreak: 0,
+  highestMultiplierHit: 0,
+  highestWinStreak: 0,
+  losses: 0,
+  totalSpins: 0,
+  totalWagered: 0,
+  totalWinnings: 0,
+  wins: 0
+};
 
 export function useGame() {
+  const [activeSpin, setActiveSpin] = useState(null);
   const [balance, setBalance] = useState(null);
-  const [board, setBoard] = useState(idleBoard);
-  const [winningLines, setWinningLines] = useState([0, 0, 0]);
-  const [status, setStatus] = useState({
-    tone: "idle",
-    text: "Place your bet and spin the reels."
-  });
+  const [banner, setBanner] = useState(null);
+  const [betValue, setBetValue] = useState("20");
+  const [board, setBoard] = useState(IDLE_BOARD);
   const [error, setError] = useState("");
+  const [isBigWin, setIsBigWin] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
   const [isStarting, setIsStarting] = useState(true);
+  const [recentSpins, setRecentSpins] = useState([]);
+  const [recentWins, setRecentWins] = useState([]);
+  const [stats, setStats] = useState(initialStats);
+  const [status, setStatus] = useState(initialStatus);
+  const [winningLines, setWinningLines] = useState([0, 0, 0]);
 
-  const frameRef = useRef(0);
-  const intervalRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const sound = useSoundEffects();
+  const timersRef = useRef([]);
 
-  const stopAnimation = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
-    frameRef.current = 0;
-  };
+  const numericBet = Number(betValue);
+  const isWholeNumber = Number.isInteger(numericBet);
+  const exceedsBalance = balance !== null && numericBet > balance;
+  const controlsDisabled = isStarting || isSpinning;
+  const canSpin =
+    !controlsDisabled &&
+    balance !== null &&
+    isWholeNumber &&
+    numericBet > 0 &&
+    !exceedsBalance;
 
   useEffect(() => {
     void initializeGame();
 
     return () => {
-      stopAnimation();
+      clearTimers();
     };
   }, []);
 
   async function initializeGame() {
-    stopAnimation();
+    clearTimers();
+    setActiveSpin(null);
+    setBanner(null);
+    setBoard(IDLE_BOARD);
+    setError("");
+    setIsBigWin(false);
+    setIsShaking(false);
     setIsSpinning(false);
     setIsStarting(true);
-    setError("");
+    setStatus(initialStatus);
     setWinningLines([0, 0, 0]);
-    setBoard(idleBoard);
 
     try {
       const response = await startGame();
       setBalance(response.balance);
-      setStatus({
-        tone: "idle",
-        text: "Place your bet and spin the reels."
-      });
     } catch (requestError) {
+      setError(requestError.message);
       setStatus({
         tone: "error",
-        text: "Could not start the game."
+        title: "Machine offline",
+        text: "The cabinet did not start cleanly."
       });
-      setError(requestError.message);
     } finally {
       setIsStarting(false);
     }
   }
 
-  async function spin(bet) {
-    if (isSpinning || isStarting) {
+  async function spinCurrentBet() {
+    if (!canSpin) {
       return;
     }
 
+    clearTimers();
+    setActiveSpin(null);
+    setBanner(null);
     setError("");
-    setWinningLines([0, 0, 0]);
+    setIsBigWin(false);
+    setIsSpinning(true);
+    setIsShaking(true);
     setStatus({
-      tone: "idle",
-      text: "Reels are spinning..."
+      tone: "spinning",
+      title: "Reels in motion",
+      text: "Listen for the clicks."
     });
+    setWinningLines([0, 0, 0]);
+
+    void sound.prime();
+    sound.playSpinStart();
+
+    timersRef.current.push(
+      window.setTimeout(() => setIsShaking(false), 260)
+    );
 
     try {
-      const response = await spinGame(bet);
-      playSpin(response);
+      const response = await spinGame(numericBet);
+      startSpinSequence(response, numericBet, stats.totalSpins);
     } catch (requestError) {
+      clearTimers();
+      setIsShaking(false);
+      setIsSpinning(false);
+      setError(requestError.message);
       setStatus({
         tone: "error",
+        title: "Spin failed",
         text: requestError.message
       });
-      setError(requestError.message);
     }
   }
 
-  function playSpin(result) {
-    stopAnimation();
-    setIsSpinning(true);
+  function startSpinSequence(result, bet, spinIndex) {
+    setActiveSpin({
+      id: Date.now(),
+      reels: createReelSpin(result.spin)
+    });
 
-    intervalRef.current = setInterval(() => {
-      frameRef.current += 1;
-      setBoard(buildRollingBoard(frameRef.current));
-    }, frameInterval);
-
-    timeoutRef.current = setTimeout(() => {
-      stopAnimation();
-      setBoard(result.spin);
-      setWinningLines(result.winningLines);
-      setBalance(result.balance);
-      setStatus(
-        result.winAmount > 0
-          ? { tone: "win", text: `You won $${result.winAmount}` }
-          : { tone: "lose", text: "No winning lines" }
+    REEL_STOP_TIMES.forEach((stopTime) => {
+      timersRef.current.push(
+        window.setTimeout(() => {
+          sound.playReelStop();
+        }, stopTime)
       );
-      setIsSpinning(false);
-    }, animationDuration);
+    });
+
+    timersRef.current.push(
+      window.setTimeout(() => {
+        finalizeSpin(result, bet, spinIndex);
+      }, REEL_STOP_TIMES[REEL_STOP_TIMES.length - 1] + 120)
+    );
+  }
+
+  function finalizeSpin(result, bet, spinIndex) {
+    const summary = analyzeSpin(result, bet, spinIndex);
+
+    setActiveSpin(null);
+    setBalance(result.balance);
+    setBanner(summary.banner);
+    setBoard(result.spin);
+    setIsBigWin(summary.isBigWin);
+    setIsSpinning(false);
+    setStatus(summary.banner);
+    setWinningLines(result.winningLines);
+
+    if (summary.isWin) {
+      if (summary.isBigWin) {
+        sound.playBigWin();
+      } else {
+        sound.playWin();
+      }
+    }
+
+    setRecentSpins((current) => [
+      {
+        id: `${Date.now()}-${current.length}`,
+        label: summary.recentSpinLabel,
+        previewSymbols: summary.previewSymbols,
+        winAmount: summary.winAmount
+      },
+      ...current
+    ].slice(0, 5));
+
+    if (summary.isWin) {
+      setRecentWins((current) => [
+        {
+          id: `${Date.now()}-${current.length}`,
+          amount: summary.winAmount,
+          label: summary.lineLabel || "Winning Line"
+        },
+        ...current
+      ].slice(0, 10));
+    }
+
+    setStats((current) => {
+      const wins = current.wins + (summary.isWin ? 1 : 0);
+      const losses = current.losses + (summary.isWin ? 0 : 1);
+      const currentWinStreak = summary.isWin ? current.currentWinStreak + 1 : 0;
+      const totalSpins = current.totalSpins + 1;
+
+      return {
+        biggestWin: Math.max(current.biggestWin, summary.winAmount),
+        currentWinStreak,
+        highestMultiplierHit: Math.max(
+          current.highestMultiplierHit,
+          summary.highestMultiplier
+        ),
+        highestWinStreak: Math.max(
+          current.highestWinStreak,
+          currentWinStreak
+        ),
+        losses,
+        totalSpins,
+        totalWagered: current.totalWagered + bet,
+        totalWinnings: current.totalWinnings + summary.winAmount,
+        wins
+      };
+    });
+  }
+
+  function clearTimers() {
+    timersRef.current.forEach((timer) => {
+      window.clearTimeout(timer);
+    });
+    timersRef.current = [];
   }
 
   return {
+    activeSpin,
     balance,
-    board,
-    winningLines,
-    status,
+    banner,
+    betValue,
+    canSpin,
+    controlsDisabled,
     error,
+    exceedsBalance,
+    isBigWin,
+    isShaking,
     isSpinning,
-    isStarting,
-    spin,
-    startNewGame: initializeGame
+    recentSpins,
+    recentWins,
+    setBetValue(value) {
+      setBetValue(value);
+      setError("");
+    },
+    sound,
+    spinCurrentBet,
+    startNewGame: initializeGame,
+    stats,
+    status,
+    winningLines,
+    board
   };
 }

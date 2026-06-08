@@ -1,84 +1,110 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { BetControls } from "./components/BetControls";
 import { Header } from "./components/Header";
+import { MachineLever } from "./components/MachineLever";
+import { ResultBanner } from "./components/ResultBanner";
+import { SessionPanels } from "./components/SessionPanels";
 import { SlotBoard } from "./components/SlotBoard";
-import { StatusBanner } from "./components/StatusBanner";
-import { SymbolLegend } from "./components/SymbolIcons";
+import { PayoutStrip } from "./components/SymbolIcons";
+import { useAnimatedNumber } from "./hooks/useAnimatedNumber";
 import { useGame } from "./hooks/useGame";
 
 function App() {
+  const reduceMotion = useReducedMotion();
   const {
+    activeSpin,
     balance,
+    banner,
+    betValue,
     board,
-    winningLines,
-    status,
+    canSpin,
+    controlsDisabled,
     error,
-    isSpinning,
-    isStarting,
-    spin,
-    startNewGame
+    exceedsBalance,
+    isBigWin,
+    isShaking,
+    recentSpins,
+    recentWins,
+    setBetValue,
+    sound,
+    spinCurrentBet,
+    startNewGame,
+    stats,
+    status,
+    winningLines
   } = useGame();
+
+  const animatedBalance = useAnimatedNumber(balance ?? 0, 850);
 
   return (
     <div className="app-shell">
-      <Header />
+      <Header
+        muted={sound.muted}
+        onNewGame={startNewGame}
+        onToggleSound={sound.toggleMuted}
+        spinLocked={controlsDisabled}
+      />
 
-      <main className="layout">
-        <section className="game-card">
-          <div className="game-card__marquee" />
-          <div className="game-card__topbar">
-            <div>
-              <p className="eyebrow">Balance</p>
-              <p className="balance-value">
-                {balance === null ? "Loading..." : `$${balance}`}
-              </p>
+      <main className="arcade-layout">
+        <section className="machine-hero">
+          <div className={`machine-cabinet ${isBigWin ? "machine-cabinet--big-win" : ""}`}>
+            <div className="machine-cabinet__top">
+              <div className="machine-display-card">
+                <p className="eyebrow">Current Balance</p>
+                <p className="machine-balance">${animatedBalance}</p>
+              </div>
+
+              <div className="machine-display-card machine-display-card--secondary">
+                <p className="eyebrow">Current Streak</p>
+                <p className="machine-chip">{stats.currentWinStreak}</p>
+              </div>
             </div>
 
-            <button
-              className="secondary-button"
-              onClick={startNewGame}
-              disabled={isSpinning || isStarting}
-              type="button"
+            <motion.div
+              animate={
+                isShaking
+                  ? reduceMotion
+                    ? { x: 0, y: 0 }
+                    : {
+                        rotate: [0, -0.2, 0.2, 0],
+                        x: [0, -4, 4, -2, 2, 0],
+                        y: [0, 1, -1, 0]
+                      }
+                  : { rotate: 0, x: 0, y: 0 }
+              }
+              className="machine-stage"
+              transition={{ duration: reduceMotion ? 0.1 : 0.26, ease: "easeInOut" }}
             >
-              New Game
-            </button>
+              <SlotBoard
+                activeSpin={activeSpin}
+                board={board}
+                isBigWin={isBigWin}
+                winningLines={winningLines}
+              />
+              <MachineLever disabled={!canSpin} onPull={spinCurrentBet} />
+            </motion.div>
+
+            <ResultBanner banner={banner} error={error} status={status} />
+
+            <BetControls
+              balance={balance}
+              betValue={betValue}
+              canSpin={canSpin}
+              controlsDisabled={controlsDisabled}
+              exceedsBalance={exceedsBalance}
+              onBetChange={setBetValue}
+              onSpin={spinCurrentBet}
+            />
+
+            <PayoutStrip />
           </div>
-
-          <SlotBoard
-            board={board}
-            isSpinning={isSpinning}
-            winningLines={winningLines}
-          />
-
-          <StatusBanner error={error} isBusy={isSpinning || isStarting} status={status} />
-
-          <BetControls
-            balance={balance}
-            disabled={isSpinning || isStarting}
-            onSpin={spin}
-          />
         </section>
 
-        <aside className="info-stack">
-          <section className="info-card">
-            <div className="info-card__header">
-              <p className="eyebrow">Payout Table</p>
-              <p className="info-card__title">Three-in-a-row pays the full line.</p>
-            </div>
-            <SymbolLegend />
-          </section>
-
-          <section className="info-card">
-            <div className="info-card__header">
-              <p className="eyebrow">Machine Notes</p>
-              <p className="info-card__title">Built for quick sessions on any screen.</p>
-            </div>
-            <ul className="notes-list">
-              <li>3 rows x 3 columns with horizontal line wins.</li>
-              <li>Warm arcade styling, responsive layout, and tasteful reel motion.</li>
-              <li>Go powers the slot logic while React handles the interface.</li>
-            </ul>
-          </section>
-        </aside>
+        <SessionPanels
+          recentSpins={recentSpins}
+          recentWins={recentWins}
+          stats={stats}
+        />
       </main>
     </div>
   );

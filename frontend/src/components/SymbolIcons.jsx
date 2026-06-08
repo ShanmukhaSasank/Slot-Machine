@@ -1,35 +1,48 @@
-const symbolConfig = {
-  A: { label: "Diamond", payout: "50x" },
-  B: { label: "Star", payout: "30x" },
-  C: { label: "Cherry", payout: "10x" },
-  D: { label: "Lemon", payout: "5x" }
-};
+import { SYMBOL_META } from "../lib/gamePresentation";
 
-export function SymbolIcon({ symbol }) {
-  const config = symbolConfig[symbol];
+export function SymbolIcon({
+  symbol,
+  compact = false,
+  highlight = false
+}) {
+  const config = SYMBOL_META[symbol];
 
   return (
-    <div className="symbol-glyph" aria-label={config.label} title={config.label}>
+    <div
+      className={`symbol-glyph ${compact ? "symbol-glyph--compact" : ""} ${highlight ? "symbol-glyph--highlight" : ""}`}
+      aria-label={config.name}
+      title={config.name}
+    >
       {symbol === "A" ? <DiamondIcon /> : null}
       {symbol === "B" ? <StarIcon /> : null}
       {symbol === "C" ? <CherryIcon /> : null}
       {symbol === "D" ? <LemonIcon /> : null}
-      <span className="visually-hidden">{config.label}</span>
+      <span className="visually-hidden">{config.name}</span>
     </div>
   );
 }
 
-export function SymbolLegend() {
+export function SymbolRow({ symbols, compact = false, highlight = false }) {
   return (
-    <div className="legend-grid">
-      {Object.entries(symbolConfig).map(([symbol, config]) => (
-        <div className="legend-item" key={symbol}>
-          <div className="legend-icon">
-            <SymbolIcon symbol={symbol} />
-          </div>
+    <div className={`symbol-row ${compact ? "symbol-row--compact" : ""}`}>
+      {symbols.map((symbol, index) => (
+        <div className="symbol-row__item" key={`${symbol}-${index}`}>
+          <SymbolIcon compact={compact} highlight={highlight} symbol={symbol} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function PayoutStrip() {
+  return (
+    <div className="payout-strip" aria-label="Payout table">
+      {Object.entries(SYMBOL_META).map(([symbol, meta]) => (
+        <div className="payout-pill" key={symbol}>
+          <SymbolIcon compact symbol={symbol} />
           <div>
-            <p className="legend-name">{config.label}</p>
-            <p className="legend-meta">{`${symbol} pays ${config.payout}`}</p>
+            <p className="payout-pill__name">{meta.name}</p>
+            <p className="payout-pill__meta">{`${meta.multiplier}x line`}</p>
           </div>
         </div>
       ))}
@@ -39,13 +52,27 @@ export function SymbolLegend() {
 
 function DiamondIcon() {
   return (
-    <svg className="icon-svg" viewBox="0 0 64 64">
-      <polygon fill="#5d7aa8" points="32 6 53 26 32 58 11 26" />
-      <polygon fill="#9fb7d7" points="32 6 44 26 32 34 20 26" />
+    <svg className="icon-svg" viewBox="0 0 84 84">
+      <defs>
+        <linearGradient id="diamond-shell" x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="#dbe8ff" />
+          <stop offset="100%" stopColor="#5d7aa8" />
+        </linearGradient>
+      </defs>
+      <polygon fill="url(#diamond-shell)" points="42 8 69 30 42 76 15 30" />
+      <polygon fill="#ffffff" opacity="0.78" points="42 8 54 30 42 40 30 30" />
       <polyline
         fill="none"
-        points="11 26 32 34 53 26"
-        stroke="#e8eef7"
+        points="15 30 42 40 69 30"
+        stroke="#f2f7ff"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="4"
+      />
+      <polyline
+        fill="none"
+        points="28 18 42 40 56 18"
+        stroke="#86a3cc"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="3"
@@ -56,51 +83,80 @@ function DiamondIcon() {
 
 function StarIcon() {
   return (
-    <svg className="icon-svg" viewBox="0 0 64 64">
+    <svg className="icon-svg" viewBox="0 0 84 84">
+      <defs>
+        <linearGradient id="star-core" x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="#ffe38d" />
+          <stop offset="100%" stopColor="#c9941d" />
+        </linearGradient>
+      </defs>
       <polygon
-        fill="#d4a632"
-        points="32 7 39 24 57 24 43 35 48 53 32 42 16 53 21 35 7 24 25 24"
+        fill="url(#star-core)"
+        points="42 10 51 31 74 31 56 45 62 68 42 56 22 68 28 45 10 31 33 31"
       />
-      <circle cx="32" cy="31" fill="#f7d774" r="6" />
+      <circle cx="42" cy="41" fill="#fff6cf" r="7" />
+      <path
+        d="M42 19v10M25 31h8"
+        fill="none"
+        opacity="0.6"
+        stroke="#fff6cf"
+        strokeLinecap="round"
+        strokeWidth="3"
+      />
     </svg>
   );
 }
 
 function CherryIcon() {
   return (
-    <svg className="icon-svg" viewBox="0 0 64 64">
+    <svg className="icon-svg" viewBox="0 0 84 84">
       <path
-        d="M24 20c2-8 10-12 20-10"
+        d="M29 27c2-12 12-18 29-15"
         fill="none"
-        stroke="#4e7c44"
+        stroke="#5f8747"
         strokeLinecap="round"
-        strokeWidth="4"
+        strokeWidth="5"
       />
       <path
-        d="M36 22c3-7 9-10 16-9"
+        d="M48 30c4-10 11-14 20-13"
         fill="none"
-        stroke="#4e7c44"
+        stroke="#5f8747"
         strokeLinecap="round"
-        strokeWidth="4"
+        strokeWidth="5"
       />
-      <circle cx="23" cy="39" fill="#c0392b" r="12" />
-      <circle cx="41" cy="41" fill="#d54b3d" r="12" />
-      <circle cx="19" cy="34" fill="#f6b3ab" opacity="0.55" r="4" />
-      <circle cx="37" cy="36" fill="#f7b9b2" opacity="0.4" r="4" />
+      <circle cx="29" cy="52" fill="#bf3a2b" r="15" />
+      <circle cx="52" cy="55" fill="#d94e40" r="15" />
+      <ellipse cx="24" cy="46" fill="#ffd7d2" opacity="0.55" rx="5" ry="4" />
+      <ellipse cx="47" cy="49" fill="#ffd1ca" opacity="0.45" rx="5" ry="4" />
     </svg>
   );
 }
 
 function LemonIcon() {
   return (
-    <svg className="icon-svg" viewBox="0 0 64 64">
-      <ellipse cx="32" cy="34" fill="#f0c949" rx="20" ry="13" />
-      <ellipse cx="32" cy="34" fill="none" rx="20" ry="13" stroke="#d4a632" strokeWidth="3" />
-      <path d="M32 17c4-6 9-8 16-6-2 7-8 10-16 10" fill="#6f9953" />
-      <path
-        d="M20 34h24"
+    <svg className="icon-svg" viewBox="0 0 84 84">
+      <defs>
+        <linearGradient id="lemon-shell" x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="#ffeb91" />
+          <stop offset="100%" stopColor="#d7aa24" />
+        </linearGradient>
+      </defs>
+      <ellipse cx="42" cy="47" fill="url(#lemon-shell)" rx="25" ry="16" />
+      <ellipse
+        cx="42"
+        cy="47"
         fill="none"
-        stroke="#f7df88"
+        rx="25"
+        ry="16"
+        stroke="#f7f0bf"
+        strokeWidth="3"
+      />
+      <path d="M42 24c5-8 12-11 21-8-3 9-10 13-21 13" fill="#7ca65f" />
+      <path
+        d="M27 47h30"
+        fill="none"
+        opacity="0.7"
+        stroke="#fff4bb"
         strokeLinecap="round"
         strokeWidth="3"
       />

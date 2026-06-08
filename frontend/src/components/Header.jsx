@@ -1,12 +1,25 @@
-export function Header() {
+import { SoundToggle } from "./SoundToggle";
+
+export function Header({ muted, onNewGame, onToggleSound, spinLocked }) {
   return (
     <header className="site-header">
       <div>
-        <p className="eyebrow">Indie Arcade</p>
+        <p className="eyebrow">Classic Arcade Cabinet</p>
         <h1 className="site-title">Sasank&apos;s Casino</h1>
-        <p className="site-subtitle">Classic Slot Machine</p>
+        <p className="site-subtitle">Polished slot play with warm machine feel.</p>
       </div>
-      <div className="header-pill">Made for mobile, polished for desktop</div>
+
+      <div className="site-actions">
+        <SoundToggle muted={muted} onToggle={onToggleSound} />
+        <button
+          className="secondary-button"
+          disabled={spinLocked}
+          onClick={onNewGame}
+          type="button"
+        >
+          New Game
+        </button>
+      </div>
     </header>
   );
 }
